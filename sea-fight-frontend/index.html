@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sea Fight Multiplayer</title>
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+    <div class="menu-container">
+        <h1>⚓ SEA FIGHT</h1>
+        <p class="subtitle">Real-time Naval Warfare</p>
+
+        <div class="status-panel">
+            <span id="status-dot" class="dot central"></span>
+            <span id="status-text">Connecting to admiralty...</span>
+        </div>
+
+        <div class="menu-cards">
+            <div class="menu-card">
+                <h3>Host a Match</h3>
+                <p>Generate a secure tactical room code to invite your friend.</p>
+                <button id="btn-create">Create Private Room</button>
+            </div>
+
+            <div class="menu-card">
+                <h3>Join a Match</h3>
+                <p>Enter the tactical room code provided by your host.</p>
+                <input type="text" id="room-input" placeholder="Enter Room Code" maxlength="6">
+                <button id="btn-join">Join Fleet</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="battle-container" id="battle-area" style="display: none;">
+        
+
+        <div class="board-wrapper">
+            <h3>⚓ My Fleet</h3>
+            <div class="board-wrapper">
+            
+            <div id="placement-controls" style="margin-bottom: 10px; text-align: center;">
+                <p style="margin: 0 0 5px 0; font-size: 0.9rem;">
+                    Placing: <strong id="ship-name-display" style="color: var(--accent);">Carrier (4)</strong>
+                </p>
+                <button id="btn-rotate" style="padding: 0.5rem; font-size: 0.8rem; width: auto;">
+                    🔄 Rotate (Current: Horizontal)
+                </button>
+            </div>
+
+            <div id="my-grid" class="tactical-grid">
+                </div>
+            </div>
+        </div>
+
+        <div class="board-wrapper">
+            <h3>🎯 Enemy Waters</h3>
+            <div id="enemy-grid" class="tactical-grid enemy-waters">
+                </div>
+        </div>
+
+        <div style="width: 100%; text-align: center; margin-bottom: 1rem;">
+            <button id="btn-main-menu" style="background-color: var(--card-bg); width: auto; padding: 10px 30px; border: 1px solid #334155; color: var(--text-secondary);">
+                🔙 Abandon Ship & Return to Menu
+            </button>
+        </div>
+
+    </div>
+
+    <script type="module" src="/src/script.js"></script>
+</body>
+</html>
