@@ -16,6 +16,12 @@ const menuArea = document.querySelector(".menu-container");
 let currentRoomCode = null;
 let myTurn = false;
 
+// Variables to track post-game statistics
+let myShots = 0;
+let myHits = 0;
+let enemyShots = 0;
+let enemyHits = 0;
+
 // Listen for connection open
 socket.addEventListener("open", (event) => {
     statusDot.classList.add("connected");
@@ -54,7 +60,6 @@ btnMainMenu.addEventListener("click", () => {
 });
 
 // Receiving Data
-
 socket.addEventListener("message", (event) => {
     const data = JSON.parse(event.data);
     console.log("📥 Server says:", data);
@@ -96,9 +101,19 @@ socket.addEventListener("message", (event) => {
             cellElement.style.backgroundColor = "#334155"; 
             cellElement.innerText = "✖";
         }
+
+        // Track stats for WebDataRocks
+        if (data.shooter === "me") {
+            myShots++;
+            if (data.status === "hit") myHits++;
+        } else {
+            enemyShots++;
+            if (data.status === "hit") enemyHits++;
+        }
         
         myTurn = data.my_turn;
         updateTurnDisplay();
+        
     } else if (data.type === "game_over") {
         const isWinner = data.winner === "me";
         
@@ -108,12 +123,18 @@ socket.addEventListener("message", (event) => {
             statusText.innerText = "🏆 VICTORY! Enemy fleet annihilated!";
             statusText.style.color = "#fbbf24";
             
-            setTimeout(() => alert("Congratulations Captain, you won the match!"), 100);
+            setTimeout(() => {
+                alert("Congratulations Captain, you won the match!");
+                showPostGameStats();
+            }, 100);
         } else {
             statusText.innerText = "💀 DEFEAT! Your fleet sleeps with the fishes...";
             statusText.style.color = "#ef4444";
             
-            setTimeout(() => alert("All ships lost. You have been defeated."), 100);
+            setTimeout(() => {
+                alert("All ships lost. You have been defeated.");
+                showPostGameStats();
+            }, 100);
         }
     }
 });
@@ -178,7 +199,7 @@ createBoard(enemyGrid, true);
 
 // SHIP PLACEMENT STATE ==================================================
 
-// The standard 5 ships
+// The standard 10 ships
 const fleet = [
     { name: "Carrier", size: 4 },
     { name: "Battleship 1", size: 3 },
@@ -282,4 +303,52 @@ function handlePreview(startX, startY, isHovering) {
             cellElement.classList.add(isValid ? 'preview-valid' : 'preview-invalid');
         }
     }
+}
+
+// --- POST GAME WEB DATA ROCKS INJECTION ---
+function showPostGameStats() {
+    battleArea.style.display = "none";
+
+    const statsContainer = document.createElement("div");
+    statsContainer.id = "wdr-component";
+    statsContainer.style.width = "100%";
+    statsContainer.style.maxWidth = "900px";
+    statsContainer.style.margin = "2rem auto";
+    document.body.appendChild(statsContainer);
+
+    const link = document.createElement("link");
+    link.href = "https://cdn.webdatarocks.com/latest/webdatarocks.min.css";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+
+    const script1 = document.createElement("script");
+    script1.src = "https://cdn.webdatarocks.com/latest/webdatarocks.toolbar.min.js";
+    document.head.appendChild(script1);
+
+    const script2 = document.createElement("script");
+    script2.src = "https://cdn.webdatarocks.com/latest/webdatarocks.js";
+    script2.onload = () => {
+        new WebDataRocks({
+            container: "#wdr-component",
+            toolbar: true,
+            report: {
+                dataSource: {
+                    data: [
+                        { "Player": "Me", "Shots Fired": myShots, "Hits": myHits, "Misses": myShots - myHits },
+                        { "Player": "Opponent", "Shots Fired": enemyShots, "Hits": enemyHits, "Misses": enemyShots - enemyHits }
+                    ]
+                },
+                slice: {
+                    rows: [{ uniqueName: "Player" }],
+                    columns: [{ uniqueName: "Measures" }],
+                    measures: [
+                        { uniqueName: "Shots Fired", aggregation: "sum" },
+                        { uniqueName: "Hits", aggregation: "sum" },
+                        { uniqueName: "Misses", aggregation: "sum" }
+                    ]
+                }
+            }
+        });
+    };
+    document.head.appendChild(script2);
 }
