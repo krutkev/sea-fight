@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sea Fight Multiplayer</title>
     <link rel="stylesheet" href="/src/style.css">
+    <link rel="stylesheet" href="https://cdn.webdatarocks.com/latest/webdatarocks.min.css">
+    <script src="https://cdn.webdatarocks.com/latest/webdatarocks.toolbar.min.js"></script>
+    <script src="https://cdn.webdatarocks.com/latest/webdatarocks.js"></script>
 </head>
 <body>
     <div class="menu-container">
@@ -33,12 +36,10 @@
     </div>
 
     <div class="battle-container" id="battle-area" style="display: none;">
-        
 
         <div class="board-wrapper">
             <h3>⚓ My Fleet</h3>
-            <div class="board-wrapper">
-            
+
             <div id="placement-controls" style="margin-bottom: 10px; text-align: center;">
                 <p style="margin: 0 0 5px 0; font-size: 0.9rem;">
                     Placing: <strong id="ship-name-display" style="color: var(--accent);">Carrier (4)</strong>
@@ -48,15 +49,12 @@
                 </button>
             </div>
 
-            <div id="my-grid" class="tactical-grid">
-                </div>
-            </div>
+            <div id="my-wdr"></div>
         </div>
 
         <div class="board-wrapper">
             <h3>🎯 Enemy Waters</h3>
-            <div id="enemy-grid" class="tactical-grid enemy-waters">
-                </div>
+            <div id="enemy-wdr"></div>
         </div>
 
         <div style="width: 100%; text-align: center; margin-bottom: 1rem;">

@@ -1,205 +1,26 @@
-const socket = new WebSocket("wss://sea-fight-g0yi.onrender.com/ws");
+// const socket = new WebSocket("wss://sea-fight-g0yi.onrender.com/ws");
+const socket = new WebSocket("ws://localhost:8000/ws");
 
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
-
 const btnCreate = document.getElementById("btn-create");
 const btnJoin = document.getElementById("btn-join");
 const btnMainMenu = document.getElementById("btn-main-menu");
 const roomInput = document.getElementById("room-input");
-
-const myGrid = document.getElementById("my-grid");
-const enemyGrid = document.getElementById("enemy-grid");
 const battleArea = document.getElementById("battle-area");
 const menuArea = document.querySelector(".menu-container");
 
 let currentRoomCode = null;
 let myTurn = false;
+let myShots = 0, myHits = 0, enemyShots = 0, enemyHits = 0;
 
-// Variables to track post-game statistics
-let myShots = 0;
-let myHits = 0;
-let enemyShots = 0;
-let enemyHits = 0;
+let myPivot = null;
+let enemyPivot = null;
+let myBoardRecords = [];
+let enemyBoardRecords = [];
+let myBoardData = Array(10).fill(null).map(() => Array(10).fill(0));
 
-// Listen for connection open
-socket.addEventListener("open", (event) => {
-    statusDot.classList.add("connected");
-    statusText.innerText = "Connected to Server";
-    console.log("🟢 WebSocket Connected");
-});
-
-// Listen for connection close
-socket.addEventListener("close", (event) => {
-    statusDot.classList.remove("connected");
-    statusText.innerText = "Disconnected from Server";
-    console.log("🔴 WebSocket Disconnected");
-});
-
-// Handle button clicks
-btnCreate.addEventListener("click", () => {
-    let payload = {"action": "create_room"};
-    let responce = socket.send(JSON.stringify(payload));
-    console.log("Creating room...");
-});
-
-btnJoin.addEventListener("click", () => {
-    const roomCode = roomInput.value.trim();
-    if (!roomCode) return alert("Please enter a room code!");
-    let payload = {"action": "join_room", "room_code": roomCode}
-    socket.send(JSON.stringify(payload));
-    console.log(`Joining room: ${roomCode}`);
-});
-
-btnMainMenu.addEventListener("click", () => {
-    const confirmLeave = confirm("Are you sure you want to abandon the match? This will disconnect you from the room.");
-    
-    if (confirmLeave) {
-        window.location.reload();
-    }
-});
-
-// Receiving Data
-socket.addEventListener("message", (event) => {
-    const data = JSON.parse(event.data);
-    console.log("📥 Server says:", data);
-
-    if (data.type === "room_created") {
-        alert(`Room Created! Share this code: ${data.room_code}`);
-        currentRoomCode = data.room_code;
-        
-    } else if (data.type === "room_joined") {
-        console.log(`Successfully joined room: ${data.room_code}`);
-        currentRoomCode = data.room_code;
-        
-    } else if (data.type === "error") {
-        alert(data.text);
-        
-    } else if (data.type === "game_start") {
-        alert("Match found! The game is starting!");
-        // Hide the main menu
-        menuArea.style.display = 'none';
-        
-        // Show the 10x10 grids
-        battleArea.style.display = 'flex';
-    } else if (data.type === "all_ready") {
-        document.getElementById("placement-controls").style.display = "none";
-        
-        myTurn = data.my_turn;
-        updateTurnDisplay();
-        
-        alert(myTurn ? "All fleets deployed! You fire first." : "All fleets deployed! Enemy fires first.");
-        
-    } else if (data.type === "fire_result") {
-        const targetGrid = data.shooter === "me" ? enemyGrid : myGrid;
-        const cellElement = targetGrid.querySelector(`.cell[data-x="${data.x}"][data-y="${data.y}"]`);
-        
-        if (data.status === "hit") {
-            cellElement.style.backgroundColor = "#ef4444"; 
-            cellElement.innerText = "💥";
-        } else {
-            cellElement.style.backgroundColor = "#334155"; 
-            cellElement.innerText = "✖";
-        }
-
-        // Track stats for WebDataRocks
-        if (data.shooter === "me") {
-            myShots++;
-            if (data.status === "hit") myHits++;
-        } else {
-            enemyShots++;
-            if (data.status === "hit") enemyHits++;
-        }
-        
-        myTurn = data.my_turn;
-        updateTurnDisplay();
-        
-    } else if (data.type === "game_over") {
-        const isWinner = data.winner === "me";
-        
-        myTurn = false;
-        
-        if (isWinner) {
-            statusText.innerText = "🏆 VICTORY! Enemy fleet annihilated!";
-            statusText.style.color = "#fbbf24";
-            
-            setTimeout(() => {
-                alert("Congratulations Captain, you won the match!");
-                showPostGameStats();
-            }, 100);
-        } else {
-            statusText.innerText = "💀 DEFEAT! Your fleet sleeps with the fishes...";
-            statusText.style.color = "#ef4444";
-            
-            setTimeout(() => {
-                alert("All ships lost. You have been defeated.");
-                showPostGameStats();
-            }, 100);
-        }
-    }
-});
-
-function createBoard(gridElement, isEnemy) {
-    for (let y = 0; y < 10; y++) {
-        for (let x = 0; x < 10; x++) {
-            const cell = document.createElement("div");
-            cell.classList.add("cell");
-            cell.dataset.x = x;
-            cell.dataset.y = y;
-
-            if (isEnemy) {
-                cell.addEventListener("click", () => handleFire(x, y));
-            } else {
-                cell.addEventListener("click", () => handleMyBoardClick(x, y));
-                
-                cell.addEventListener("mouseover", () => handlePreview(x, y, true));
-                cell.addEventListener("mouseout", () => handlePreview(x, y, false));
-            }
-
-            gridElement.appendChild(cell);
-        }
-    }
-}
-
-function updateTurnDisplay() {
-    if (myTurn) {
-        statusText.innerText = "🟢 YOUR TURN - Select a target!";
-        statusText.style.color = "#22c55e"; // Green text
-    } else {
-        statusText.innerText = "🔴 ENEMY TURN - Brace for impact...";
-        statusText.style.color = "#ef4444"; // Red text
-    }
-}
-
-function handleFire(x, y) {
-    if (!currentRoomCode) return;
-    
-    if (!myTurn) {
-        alert("Hold your fire! It's not your turn.");
-        return;
-    }
-
-    const cellElement = enemyGrid.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
-    if (cellElement.innerText === "💥" || cellElement.innerText === "✖") {
-        return;
-    }
-    
-    let payload = {
-        "action": "fire",
-        "room_code": currentRoomCode,
-        "x": x,
-        "y": y
-    };
-    socket.send(JSON.stringify(payload));
-}
-
-createBoard(myGrid, false);
-createBoard(enemyGrid, true);
-
-
-// SHIP PLACEMENT STATE ==================================================
-
-// The standard 10 ships
+// SHIP PLACEMENT STATE
 const fleet = [
     { name: "Carrier", size: 4 },
     { name: "Battleship 1", size: 3 },
@@ -212,143 +33,395 @@ const fleet = [
     { name: "Destroyer 3", size: 1 },
     { name: "Destroyer 4", size: 1 }
 ];
-
 let currentShipIndex = 0;
 let isHorizontal = true;
 
-// Create a 10x10 array filled with 0s (0 = water, 1 = ship)
-let myBoardData = Array(10).fill(null).map(() => Array(10).fill(0));
-
 const btnRotate = document.getElementById("btn-rotate");
 const shipNameDisplay = document.getElementById("ship-name-display");
-const placementControls = document.getElementById("placement-controls");
 
 btnRotate.addEventListener("click", () => {
     isHorizontal = !isHorizontal;
     btnRotate.innerText = isHorizontal ? "🔄 Rotate (Current: Horizontal)" : "🔄 Rotate (Current: Vertical)";
 });
 
-function canPlaceShip(startX, startY, size) {
-    for (let i = 0; i < size; i++) {
-        let x = isHorizontal ? startX + i : startX;
-        let y = isHorizontal ? startY : startY + i;
+// WebSocket
 
-        if (x >= 10 || y >= 10) return false;
-        
-        if (myBoardData[y][x] === 1) return false;
+socket.addEventListener("open", () => {
+    statusDot.classList.add("connected");
+    statusText.innerText = "Connected to Server";
+    console.log("🟢 WebSocket Connected");
+});
+
+socket.addEventListener("close", () => {
+    statusDot.classList.remove("connected");
+    statusText.innerText = "Disconnected from Server";
+    console.log("🔴 WebSocket Disconnected");
+});
+
+btnCreate.addEventListener("click", () => {
+    socket.send(JSON.stringify({ action: "create_room" }));
+});
+
+btnJoin.addEventListener("click", () => {
+    const roomCode = roomInput.value.trim();
+    if (!roomCode) return alert("Please enter a room code!");
+    socket.send(JSON.stringify({ action: "join_room", room_code: roomCode }));
+});
+
+btnMainMenu.addEventListener("click", () => {
+    if (confirm("Are you sure you want to abandon the match? This will disconnect you from the room.")) {
+        window.location.reload();
     }
+});
+
+socket.addEventListener("message", (event) => {
+    const data = JSON.parse(event.data);
+    console.log("📥 Server says:", data);
+
+    if (data.type === "room_created") {
+        alert(`Room Created! Share this code: ${data.room_code}`);
+        currentRoomCode = data.room_code;
+
+    } else if (data.type === "room_joined") {
+        console.log(`Successfully joined room: ${data.room_code}`);
+        currentRoomCode = data.room_code;
+
+    } else if (data.type === "error") {
+        alert(data.text);
+
+    } else if (data.type === "game_start") {
+        alert("Match found! The game is starting!");
+        menuArea.style.display = "none";
+        battleArea.style.display = "flex";
+        requestAnimationFrame(() => initBoards());
+
+    } else if (data.type === "all_ready") {
+        document.getElementById("placement-controls").style.display = "none";
+        myTurn = data.my_turn;
+        alert(myTurn ? "All fleets deployed! You fire first." : "All fleets deployed! Enemy fires first.");
+
+    } else if (data.type === "fire_result") {
+        const isMyShot = data.shooter === "me";
+        const records = isMyShot ? enemyBoardRecords : myBoardRecords;
+        const pivot = isMyShot ? enemyPivot : myPivot;
+        const newState = data.status === "hit" ? 2 : -1;
+
+        setRecordState(records, data.y, data.x, newState);
+        pivot.updateData({ data: records });
+
+        if (isMyShot) {
+            myShots++;
+            if (data.status === "hit") myHits++;
+        } else {
+            enemyShots++;
+            if (data.status === "hit") enemyHits++;
+        }
+
+        myTurn = data.my_turn;
+
+    } else if (data.type === "game_over") {
+        myTurn = false;
+        const isWinner = data.winner === "me";
+
+        if (isWinner) {
+            statusText.innerText = "🏆 VICTORY! Enemy fleet annihilated!";
+            statusText.style.color = "#fbbf24";
+            setTimeout(() => { alert("Congratulations Captain, you won the match!"); showPostGameStats(); }, 100);
+        } else {
+            statusText.innerText = "💀 DEFEAT! Your fleet sleeps with the fishes...";
+            statusText.style.color = "#ef4444";
+            setTimeout(() => { alert("All ships lost. You have been defeated."); showPostGameStats(); }, 100);
+        }
+    }
+});
+
+// Board data helpers
+
+// State values: 0=water, 1=ship, 2=hit, -1=miss
+function initBoardData() {
+    const records = [];
+    for (let r = 0; r < 10; r++)
+        for (let c = 0; c < 10; c++)
+            records.push({ Row: String(r), Col: String(c), State: 0 });
+    return records;
+}
+
+function getRecord(records, row, col) {
+    return records.find(r => r.Row === String(row) && r.Col === String(col));
+}
+
+function setRecordState(records, row, col, state) {
+    const rec = getRecord(records, row, col);
+    if (rec) rec.State = state;
+}
+
+// WDR customizeCell
+
+const STATE_COLORS = {
+    0:  "#1e3a5f",
+    1:  "#2563eb",
+    2:  "#ef4444",
+    "-1": "#334155"
+};
+
+function customizeCell(cellBuilder, cellData) {
+    if (cellData.type !== "value") return;
+    try {
+        const state = cellData.value ?? 0;
+        cellBuilder.addClass("wdr-game-cell");
+        cellBuilder.addClass(state === -1 ? "wdr-miss" : `wdr-s${state}`);
+        const emoji = state === 2 ? "💥" : state === -1 ? "✖" : "​";
+        cellBuilder.text(emoji);
+    } catch (e) { console.error("customizeCell error:", e, cellData); }
+}
+
+// Board init
+
+function buildReport(records) {
+    return {
+        dataSource: {
+            dataSourceType: "json",
+            data: records
+        },
+        slice: {
+            rows: [{ uniqueName: "Row", width: 50 }],
+            columns: [{ uniqueName: "Col", width: 55 }],
+            measures: [{ uniqueName: "State", aggregation: "sum", width: 55 }]
+        },
+        options: {
+            showGrandTotals: "off",
+            showTotals: "off",
+            grid: { columnsWidth: 44 }
+        }
+    };
+}
+
+function initBoards() {
+    myBoardRecords = initBoardData();
+    enemyBoardRecords = initBoardData();
+    myBoardData = Array(10).fill(null).map(() => Array(10).fill(0));
+    currentShipIndex = 0;
+
+    myPivot = new WebDataRocks({
+        container: "#my-wdr",
+        toolbar: false,
+        width: "100%",
+        height: 420,
+        customizeCell
+    });
+
+    enemyPivot = new WebDataRocks({
+        container: "#enemy-wdr",
+        toolbar: false,
+        width: "100%",
+        height: 420,
+        customizeCell
+    });
+
+    myPivot.on("ready", () => {
+        myPivot.setReport(buildReport(myBoardRecords));
+        myPivot.on("reportcomplete", () => {
+            assignDataAttrs("my-wdr");
+            styleAllCells("my-wdr", myBoardRecords);
+        });
+        myPivot.on("cellclick", (cell) => {
+            if (cell.type !== "value") return;
+            const row = cell.rows?.[0]?.caption ?? cell.rowData?.["Row"]?.caption;
+            const col = cell.columns?.[0]?.caption ?? cell.columnData?.["Col"]?.caption;
+            console.log("[WDR] my cellclick row=%s col=%s", row, col, cell);
+            if (row == null || col == null) return;
+            handleMyBoardClick(Number(col), Number(row));
+        });
+    });
+
+    enemyPivot.on("ready", () => {
+        enemyPivot.setReport(buildReport(enemyBoardRecords));
+        enemyPivot.on("reportcomplete", () => {
+            assignDataAttrs("enemy-wdr");
+            styleAllCells("enemy-wdr", enemyBoardRecords);
+        });
+        enemyPivot.on("cellclick", (cell) => {
+            if (cell.type !== "value") return;
+            const row = cell.rows?.[0]?.caption ?? cell.rowData?.["Row"]?.caption;
+            const col = cell.columns?.[0]?.caption ?? cell.columnData?.["Col"]?.caption;
+            console.log("[WDR] enemy cellclick row=%s col=%s", row, col, cell);
+            if (row == null || col == null) return;
+            handleFire(Number(col), Number(row));
+        });
+    });
+
+    setupBoardInteraction();
+}
+
+function assignDataAttrs(containerId) {
+    const container = document.getElementById(containerId);
+
+    let dataTable = null;
+    let maxTds = 0;
+    container.querySelectorAll("table").forEach(t => {
+        const n = t.querySelectorAll("td").length;
+        if (n > maxTds) { maxTds = n; dataTable = t; }
+    });
+
+    if (!dataTable) return;
+
+    const dataRows = [...dataTable.querySelectorAll("tr")]
+        .filter(tr => tr.querySelectorAll("td").length > 0)
+        .slice(0, 10);
+
+    dataRows.forEach((tr, rowIdx) => {
+        [...tr.querySelectorAll("td")].forEach((td, colIdx) => {
+            td.setAttribute("data-row", String(rowIdx));
+            td.setAttribute("data-col", String(colIdx));
+        });
+    });
+
+    console.log(`[WDR] ${containerId}: tagged ${dataRows.length} rows`);
+}
+
+function styleAllCells(containerId, records) {
+    document.querySelectorAll(`#${containerId} td[data-row]`).forEach(td => {
+        const rec = getRecord(records, Number(td.dataset.row), Number(td.dataset.col));
+        const state = rec ? rec.State : 0;
+        td.style.cssText = [
+            `background:${STATE_COLORS[state] ?? "#1e3a5f"}`,
+            "cursor:pointer",
+            "text-align:center",
+            "vertical-align:middle",
+            "border:1px solid #2a4a6b",
+            "box-sizing:border-box",
+            "font-size:1.15rem"
+        ].join(";");
+        td.textContent = state === 2 ? "💥" : state === -1 ? "✖" : "";
+    });
+}
+
+// Click & hover via DOM delegation
+
+function setupBoardInteraction() {
+    const myContainer = document.getElementById("my-wdr");
+
+    // Clicks are handled by WDR's cellclick event (registered in initBoards)
+    myContainer.addEventListener("mouseover", (e) => {
+        const td = e.target.closest("td[data-row]");
+        if (!td) return;
+        drawPreview(Number(td.dataset.col), Number(td.dataset.row));
+    });
+
+    myContainer.addEventListener("mouseleave", () => {
+        clearPreview();
+    });
+}
+
+// Ship placement
+
+function canPlaceShip(startX, startY, size) {
+    const shipCells = [];
+    for (let i = 0; i < size; i++) {
+        const x = isHorizontal ? startX + i : startX;
+        const y = isHorizontal ? startY : startY + i;
+        if (x >= 10 || y >= 10) return false;
+        if (myBoardData[y][x] === 1) return false;
+        shipCells.push([x, y]);
+    }
+
+    // Ships must not touch each other, check all 8 neighbors of every ship cell
+    for (const [cx, cy] of shipCells) {
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx < 0 || nx >= 10 || ny < 0 || ny >= 10) continue;
+                if (shipCells.some(([sx, sy]) => sx === nx && sy === ny)) continue;
+                if (myBoardData[ny][nx] === 1) return false;
+            }
+        }
+    }
+
     return true;
 }
 
-// place the ship
 function handleMyBoardClick(x, y) {
     if (currentShipIndex >= fleet.length) return;
-
     const ship = fleet[currentShipIndex];
+    if (!canPlaceShip(x, y, ship.size)) return;
 
-    if (canPlaceShip(x, y, ship.size)) {
-        for (let i = 0; i < ship.size; i++) {
-            let targetX = isHorizontal ? x + i : x;
-            let targetY = isHorizontal ? y : y + i;
-
-            myBoardData[targetY][targetX] = 1;
-            
-            // Find the specific HTML cell and color it
-            const cellElement = document.querySelector(`#my-grid .cell[data-x="${targetX}"][data-y="${targetY}"]`);
-            cellElement.classList.add("ship");
-        }
-
-        currentShipIndex++;
-
-        if (currentShipIndex < fleet.length) {
-            shipNameDisplay.innerText = `${fleet[currentShipIndex].name} (${fleet[currentShipIndex].size})`;
-        } else {
-            shipNameDisplay.innerText = "Fleet Deployed! Waiting for opponent...";
-            btnRotate.style.display = "none";
-            
-            let payload = {
-                "action": "send_board",
-                "board_data": myBoardData,
-                "room_code": currentRoomCode,
-            };
-            socket.send(JSON.stringify(payload));
-            console.log("Final Board Data:", myBoardData);
-        }
-    } else {
-        console.log("Captain, we cannot place the ship there!");
-    }
-}
-
-
-function handlePreview(startX, startY, isHovering) {
-    // clear all previous previews first
-    document.querySelectorAll('#my-grid .cell').forEach(cell => {
-        cell.classList.remove('preview-valid', 'preview-invalid');
-    });
-
-    if (currentShipIndex >= fleet.length || !isHovering) return;
-
-    const ship = fleet[currentShipIndex];
-    const isValid = canPlaceShip(startX, startY, ship.size);
-
-    // Draw the new preview
     for (let i = 0; i < ship.size; i++) {
-        let x = isHorizontal ? startX + i : startX;
-        let y = isHorizontal ? startY : startY + i;
+        const tx = isHorizontal ? x + i : x;
+        const ty = isHorizontal ? y : y + i;
+        myBoardData[ty][tx] = 1;
+        setRecordState(myBoardRecords, ty, tx, 1);
+    }
 
-        if (x >= 10 || y >= 10) continue;
+    myPivot.updateData({ data: myBoardRecords });
+    currentShipIndex++;
 
-        const cellElement = document.querySelector(`#my-grid .cell[data-x="${x}"][data-y="${y}"]`);
-        if (cellElement) {
-            cellElement.classList.add(isValid ? 'preview-valid' : 'preview-invalid');
-        }
+    if (currentShipIndex < fleet.length) {
+        shipNameDisplay.innerText = `${fleet[currentShipIndex].name} (${fleet[currentShipIndex].size})`;
+    } else {
+        shipNameDisplay.innerText = "Fleet Deployed! Waiting for opponent...";
+        btnRotate.style.display = "none";
+        socket.send(JSON.stringify({
+            action: "send_board",
+            board_data: myBoardData,
+            room_code: currentRoomCode
+        }));
+        console.log("Final Board Data:", myBoardData);
     }
 }
 
-// --- POST GAME WEB DATA ROCKS INJECTION ---
+
+function clearPreview() {
+    document.querySelectorAll("#my-wdr td.wdr-preview").forEach(el => {
+        el.style.background = el.dataset.origBg || STATE_COLORS[0];
+        el.classList.remove("wdr-preview");
+    });
+}
+
+// Fire
+
+function handleFire(x, y) {
+    if (!currentRoomCode) return;
+    if (!myTurn) {
+        alert("Hold your fire! It's not your turn.");
+        return;
+    }
+    const rec = getRecord(enemyBoardRecords, y, x);
+    if (rec && (rec.State === 2 || rec.State === -1)) return;
+
+    socket.send(JSON.stringify({ action: "fire", room_code: currentRoomCode, x, y }));
+}
+
+// Post-game stats
+
 function showPostGameStats() {
     battleArea.style.display = "none";
 
     const statsContainer = document.createElement("div");
-    statsContainer.id = "wdr-component";
-    statsContainer.style.width = "100%";
-    statsContainer.style.maxWidth = "900px";
-    statsContainer.style.margin = "2rem auto";
+    statsContainer.id = "wdr-stats";
+    statsContainer.style.cssText = "width:100%;max-width:900px;margin:2rem auto;";
     document.body.appendChild(statsContainer);
 
-    const link = document.createElement("link");
-    link.href = "https://cdn.webdatarocks.com/latest/webdatarocks.min.css";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-
-    const script1 = document.createElement("script");
-    script1.src = "https://cdn.webdatarocks.com/latest/webdatarocks.toolbar.min.js";
-    document.head.appendChild(script1);
-
-    const script2 = document.createElement("script");
-    script2.src = "https://cdn.webdatarocks.com/latest/webdatarocks.js";
-    script2.onload = () => {
-        new WebDataRocks({
-            container: "#wdr-component",
-            toolbar: true,
-            report: {
-                dataSource: {
-                    data: [
-                        { "Player": "Me", "Shots Fired": myShots, "Hits": myHits, "Misses": myShots - myHits },
-                        { "Player": "Opponent", "Shots Fired": enemyShots, "Hits": enemyHits, "Misses": enemyShots - enemyHits }
-                    ]
-                },
-                slice: {
-                    rows: [{ uniqueName: "Player" }],
-                    columns: [{ uniqueName: "Measures" }],
-                    measures: [
-                        { uniqueName: "Shots Fired", aggregation: "sum" },
-                        { uniqueName: "Hits", aggregation: "sum" },
-                        { uniqueName: "Misses", aggregation: "sum" }
-                    ]
-                }
+    new WebDataRocks({
+        container: "#wdr-stats",
+        toolbar: true,
+        report: {
+            dataSource: {
+                data: [
+                    { Player: "Me", "Shots Fired": myShots, Hits: myHits, Misses: myShots - myHits },
+                    { Player: "Opponent", "Shots Fired": enemyShots, Hits: enemyHits, Misses: enemyShots - enemyHits }
+                ]
+            },
+            slice: {
+                rows: [{ uniqueName: "Player" }],
+                columns: [{ uniqueName: "Measures" }],
+                measures: [
+                    { uniqueName: "Shots Fired", aggregation: "sum" },
+                    { uniqueName: "Hits", aggregation: "sum" },
+                    { uniqueName: "Misses", aggregation: "sum" }
+                ]
             }
-        });
-    };
-    document.head.appendChild(script2);
+        }
+    });
 }
