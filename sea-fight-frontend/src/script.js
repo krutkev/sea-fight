@@ -1,5 +1,4 @@
-// const socket = new WebSocket("wss://sea-fight-g0yi.onrender.com/ws");
-const socket = new WebSocket("ws://localhost:8000/ws");
+const socket = new WebSocket("wss://sea-fight-g0yi.onrender.com/ws");
 
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
